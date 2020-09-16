@@ -12,7 +12,7 @@ class Square extends HTMLElement {
   // Specify observed attributes for invocation of attributeChangedCallback
   static get observedAttributes() {
     return ['square-color', 'square-size'];
-  }
+  }  
 
   constructor() {
     // Always call super first in constructor
@@ -20,17 +20,34 @@ class Square extends HTMLElement {
 
     console.log('Custom square element constructor called');
 
+    // Create and attach a shadow root to the HTMLElement
     const shadow = this.attachShadow({mode: 'open'});
 
-    const div = document.createElement('div');
-    const style = document.createElement('style');
-    shadow.appendChild(style);
-    shadow.appendChild(div);
+    // Create a template element and populate its html with our template string
+    const templateElement = document.createElement('template');
+    templateElement.innerHTML = this.templateString;
+
+    // "Stamp" the template into the shadow root
+    shadow.appendChild(templateElement.content.cloneNode(true));
+  }
+
+  get templateString() {
+    return `
+      <style>
+        #square {
+          width: 100px;
+          height: 100px;
+          background-color: #0000ff;
+        }              
+      </style>
+      <div id="square">
+      </div>
+    `;
   }
 
   connectedCallback() {
     console.log('Custom square element added to page: connectedCallback');
-    this.updateStyle();
+    this.render();
   }
 
   disconnectedCallback() {
@@ -43,18 +60,15 @@ class Square extends HTMLElement {
 
   attributeChangedCallback(name, oldValue, newValue) {
     console.log('Custom square element attributes changed: attributeChangedCallback');
-    this.updateStyle();
+    this.render();
   }
 
-  updateStyle() {
-    const shadow = this.shadowRoot;
-    shadow.querySelector('style').textContent = `
-      div {
-        width: ${this.getAttribute('square-size')}px;
-        height: ${this.getAttribute('square-size')}px;
-        background-color: ${this.getAttribute('square-color')};
-      }
-    `;
+  render() {
+    const customSquare = this.shadowRoot.getElementById('square');
+
+    customSquare.style.width = `${this.getAttribute('square-size')}px`;
+    customSquare.style.height = `${this.getAttribute('square-size')}px`;
+    customSquare.style.backgroundColor = `${this.getAttribute('square-color')}`;
   }
 }
 
