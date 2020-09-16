@@ -11,7 +11,7 @@ class Square extends HTMLElement {
 
   // Specify observed attributes for invocation of attributeChangedCallback
   static get observedAttributes() {
-    return ['c', 'l'];
+    return ['square-color', 'square-size'];
   }
 
   constructor() {
@@ -50,9 +50,9 @@ class Square extends HTMLElement {
     const shadow = this.shadowRoot;
     shadow.querySelector('style').textContent = `
       div {
-        width: ${this.getAttribute('l')}px;
-        height: ${this.getAttribute('l')}px;
-        background-color: ${this.getAttribute('c')};
+        width: ${this.getAttribute('square-size')}px;
+        height: ${this.getAttribute('square-size')}px;
+        background-color: ${this.getAttribute('square-color')};
       }
     `;
   }

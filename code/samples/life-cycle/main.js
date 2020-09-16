@@ -7,10 +7,11 @@
 const add = document.querySelector('.add');
 const update = document.querySelector('.update');
 const remove = document.querySelector('.remove');
-let square;
+let square = document.querySelector('custom-square');
 
-update.disabled = true;
-remove.disabled = true;
+add.disabled = true;
+update.disabled = false;
+remove.disabled = false;
 
 function random(min, max) {
   return Math.floor(Math.random() * (max - min + 1) + min);
@@ -19,8 +20,8 @@ function random(min, max) {
 add.onclick = function() {
   // Create a custom square element
   square = document.createElement('custom-square');
-  square.setAttribute('l', '100');
-  square.setAttribute('c', 'red');
+  square.setAttribute('square-size', '100');
+  square.setAttribute('square-color', 'red');
   document.body.appendChild(square);
 
   update.disabled = false;
@@ -30,8 +31,8 @@ add.onclick = function() {
 
 update.onclick = function() {
   // Randomly update square's attributes
-  square.setAttribute('l', random(50, 200));
-  square.setAttribute('c', `rgb(${random(0, 255)}, ${random(0, 255)}, ${random(0, 255)})`);
+  square.setAttribute('square-size', random(50, 200));
+  square.setAttribute('square-color', `rgb(${random(0, 255)}, ${random(0, 255)}, ${random(0, 255)})`);
 };
 
 remove.onclick = function() {
