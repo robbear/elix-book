@@ -20,8 +20,9 @@ function random(min, max) {
 add.onclick = function() {
   // Create a custom square element
   square = document.createElement('custom-square');
-  square.setAttribute('square-size', '100');
-  square.setAttribute('square-color', 'red');
+  square.squareSize = 100;
+  square.sqareColor = 'red';
+
   document.body.appendChild(square);
 
   update.disabled = false;
@@ -31,8 +32,8 @@ add.onclick = function() {
 
 update.onclick = function() {
   // Randomly update square's attributes
-  square.setAttribute('square-size', random(50, 200));
-  square.setAttribute('square-color', `rgb(${random(0, 255)}, ${random(0, 255)}, ${random(0, 255)})`);
+  square.squareSize = random(50, 200);
+  square.squareColor = `rgb(${random(0, 255)}, ${random(0, 255)}, ${random(0, 255)})`;
 };
 
 remove.onclick = function() {
