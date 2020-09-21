@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>006 - SpinBox</title>
+
+    <template id="spinBoxTemplate">
+      <style>
+        :host {
+          display: inline-grid;
+        }
+
+        #input {
+          grid-row-end: 3;
+          grid-row-start: 1;
+          text-align: right;
+        }
+
+        #upButton,
+        #downButton {
+          grid-column: 2;
+          user-select: none;
+        }
+      </style>
+      <input id="input"></input>
+      <button id="upButton">▲</button>
+      <button id="downButton">▼</button>
+    </template>
+
+    <script type="module" defer src="SpinBox.js"></script>
+  </head>
+  <body>
+    <h1>SpinBox Test</h1>
+    <spin-box></spin-box>
+  </body>
+</html>
