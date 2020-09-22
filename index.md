@@ -10,6 +10,6 @@ Words ensue...
   (<a href='https://codepen.io/robbear'>@robbear</a>) on <a href='https://codepen.io'>CodePen</a>.
 </iframe>
 
-<br>
+<br />
 
 And in which we carry on from there.
