@@ -88,8 +88,7 @@ class SpinBox extends ShadowHelperMixin(HTMLElement) {
 
   //
   // This looks like a method that would be supplied by all components,
-  // called from the common code that populates the shadow DOM. We're
-  // naming that common code for now, "renderHelper".
+  // called from the common code, renderHelper, that populates the shadow DOM.
   //
   get template() {
     return document.getElementById('spinBoxTemplate');
@@ -99,12 +98,11 @@ class SpinBox extends ShadowHelperMixin(HTMLElement) {
   // We centralize our changes to the DOM here, based on changes to
   // the SpinBox's state, namely its "value" property. We also
   // handle the special case of the first render method call, where
-  // we instantiate the shadow DOM and connect the custom element's
-  // event handlers.
+  // we delegate to our componentFirstRender method.
   //
   render() {
-    // We call renderHelper on the prototype chain. We're not implementing
-    // it in this class, so we're calling the renderHelper method implemented
+    // We call renderHelper on the prototype chain. Notice that we're 
+    // not implementing it in this class, so the implementation is being provided
     // by the ShadowHelperMixin.
     const firstRender = this.renderHelper();
     if (firstRender) {

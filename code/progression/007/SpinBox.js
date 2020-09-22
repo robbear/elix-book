@@ -1,20 +1,13 @@
 /**
  * SpinBox custom element
  * 
- * 005: Now we act on the patterns we saw earlier and begin to
- * abstract out code that will become shared between custom elements.
- * This is our first step toward a framework.
- * 
- * We separate out the common code that we use to populate the
- * shadow DOM from a specified template.
- * 
- * We also break out initialization code that happens during the first
- * render for initializing shadow DOM elements particular to our
- * custom element.
+ * 006: Mixins
  */
 
+import { ShadowHelperMixin, template } from './ShadowHelperMixin.js';
+
 // Create a class for the element
-class SpinBox extends HTMLElement {
+class SpinBox extends ShadowHelperMixin(HTMLElement) {
 
   constructor() {
     // Always call super first in constructor
@@ -94,42 +87,25 @@ class SpinBox extends HTMLElement {
   }
 
   //
-  // This looks like a method that would be supplied by all components,
-  // called from the common code, renderHelper, that populates the shadow DOM.
+  // We supply a property getter for our template element where
+  // we name this property with the agreed-upon Symbol, "template".
+  // The "template" Symbol is defined in ShadowHelperMixin.js and 
+  // is shared by that mixin and this custom element.
   //
-  get template() {
+  get [template]() {
     return document.getElementById('spinBoxTemplate');
-  }
-
-  //
-  // Common code that we're factoring out that asks for a template
-  // and "stamps" that template into the shadow DOM. Notice how
-  // this method contains no code at all pertaining to the details
-  // of the SpinBox class.
-  //
-  renderHelper() {
-    const firstRender = !this.shadowRoot;
-
-    if (firstRender) {
-      const root = this.attachShadow({ mode: 'open' });
-      const templateElement = this.template;
-      const clone = document.importNode(templateElement.content, true);
-      root.appendChild(clone);
-    }
-
-    // Return the value of firstRender, since the initialization
-    // state may be of great interest.
-    return firstRender;
   }
 
   //
   // We centralize our changes to the DOM here, based on changes to
   // the SpinBox's state, namely its "value" property. We also
   // handle the special case of the first render method call, where
-  // we instantiate the shadow DOM and connect the custom element's
-  // event handlers.
+  // we delegate to our componentFirstRender method.
   //
   render() {
+    // We call renderHelper on the prototype chain. Notice that we're 
+    // not implementing it in this class, so the implementation is being provided
+    // by the ShadowHelperMixin.
     const firstRender = this.renderHelper();
     if (firstRender) {
       // Let's isolate one-time initialization code outside
