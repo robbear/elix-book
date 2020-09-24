@@ -49,7 +49,7 @@ customElements.define('my-web-component', MyWebComponent);
 
 A web component, at its core, is obviously very simple. The class extends `HTMLElement` a provides a constructor where the component can initialize itself, including state. Of the four callbacks, only the first two are commonly used. The connectedCallback method is called when the component has been added to the page and appears in the DOM. The attributeChangedCallback is called anytime an attribute is changed on the web component.
 
-Finally, the `customElements` object, attached to `window`, presents the `define` method that asks for the new component's kabob-case HTML tag string, and associates it with the component's class name.
+Finally, the `customElements` object, attached to `window`, presents the `define` method that asks for the new component's HTML tag string, and associates it with the component's class name. Remember that web component tag strings **must** contain at least one hyphen.
 
 This base class implementation isn't hard to remember. Now let's build on it by defining a simple but working web component that we'll call SpinBox which allows a user to increment or decrement an integer value. Our SpinBox implementation will leverage other aspects of the Web Components specification, including shadow DOM and templates.
 
@@ -71,7 +71,7 @@ Let's look first at an HTML page making use of our SpinBox:
   </head>
   <body>
     <h1>SpinBox Test</h1>
-    <spin-box></spin-box>
+    <spin-box value="7"></spin-box>
   </body>
 </html>
 ```
@@ -134,7 +134,7 @@ class SpinBox extends HTMLElement {
 customElements.define('spin-box', SpinBox);
 ```
 
-This is no different than what we had above, except for name changes. There is no internal DOM structure, nothing to display. Let's fix that by attaching some HTML. We'll create the `<input>` and `<button>` elements and append them to a shadow root which we'll also create. We need to do this only once, but where? The constructor seems like a good place for initializing the shadow DOM, but we could also consider doing this work in `connectedCallback` which, like the constructor, is also called only once in the component's lifetime. The benefit of "inflating" the web component in `connectedCallback` is that it pushes this work back later in the lifecycle, after basic initialization work that might take place in the constructor or elsewhere (such as property settings as we'll see later). Let's hold onto the idea that the later we can build the shadow DOM, the more opportunity we might have for beneficial code patterns having to do with drawing, or *rendering*, the component.
+This is no different than what we had above, except for name changes and support for the `value` attribute. There is no internal DOM structure and nothing to display. Let's fix that by attaching some HTML. We'll create the `<input>` and `<button>` elements and append them to a shadow root which we'll also create. We need to do this only once, but where? The constructor seems like a good place for initializing the shadow DOM, but we could also consider doing this work in `connectedCallback` which, like the constructor, is also called only once in the component's lifetime. The benefit of "inflating" the web component in `connectedCallback` is that it pushes this work back later in the lifecycle, after basic initialization work that might take place in the constructor or elsewhere (such as property settings as we'll see later). Let's hold onto the idea that the later in the component lifecycle we can build the shadow DOM, the more opportunity we might have for beneficial code patterns having to do with drawing, or *rendering*, the component.
 
 Here are the steps we'll take.
 
@@ -217,4 +217,6 @@ render() {
 }
 ```
 
-So, what's up with this `render` method?
+Our `render` method is simple in implementation, but the control flow is profound. The implementation simply assigns the value of the component's state, `_value`, to the value property of our `<input>` element, nestled safely in the component's shadow DOM. Whenever we notice a change in the `_value` state, either through a change in the component's `value` attribute or through something like an event handler, we make sure to call the `render` method so we can bring the `<input>` element up to date.
+
+If you're not already familiar with "render-on-state-change" flows, such as in Facebook's *React* framework, you will get a sense for the power of functional reactive programming through this technique. When we centralize reactions to state changes in a single place, the `render` method, we reduce problems in code maintenance and increase code understanding.
