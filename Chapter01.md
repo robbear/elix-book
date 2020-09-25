@@ -134,7 +134,33 @@ class SpinBox extends HTMLElement {
 customElements.define('spin-box', SpinBox);
 ```
 
-This is no different than what we had above, except for name changes and support for the `value` attribute. There is no internal DOM structure and nothing to display. Let's fix that by attaching some HTML. We'll create the `<input>` and `<button>` elements and append them to a shadow root which we'll also create. We need to do this only once, but where? The constructor seems like a good place for initializing the shadow DOM, but we could also consider doing this work in `connectedCallback` which, like the constructor, is also called only once in the component's lifetime. The benefit of "inflating" the web component in `connectedCallback` is that it pushes this work back later in the lifecycle, after basic initialization work that might take place in the constructor or elsewhere (such as property settings as we'll see later). Let's hold onto the idea that the later in the component lifecycle we can build the shadow DOM, the more opportunity we might have for beneficial code patterns having to do with drawing, or *rendering*, the component.
+This is no different than what we had above, except for name changes and support for the `value` attribute. There is no internal DOM structure and nothing to display. Let's fix that by attaching some HTML so that we obtain a visual interface that looks like the following, with an `<input>` element and two `<button>` elements:
+
+**SpinBox UI**
+<p>
+  <style>
+    #spinContainer {
+      display: inline-grid;
+    }
+    #input {
+      grid-row-end: 3;
+      grid-row-start: 1;
+      text-align: right;
+    }
+    #upButton,
+    #downButton {
+      grid-column: 2;
+      user-select: none;
+    }
+  </style>
+  <div id="spinContainer">
+    <input id="input" value="7"></input>
+    <button id="upButton">▲</button>
+    <button id="downButton">▼</button>
+  </div>
+</p>
+
+We'll create the `<input>` and `<button>` elements and append them to a shadow root which we'll also create. We need to do this only once, but where? The constructor seems like a good place for initializing the shadow DOM, but we could also consider doing this work in `connectedCallback` which, like the constructor, is also called only once in the component's lifetime. The benefit of "inflating" the web component in `connectedCallback` is that it pushes this work back later in the lifecycle, after basic initialization work that might take place in the constructor or elsewhere (such as property settings as we'll see later). Let's hold onto the idea that the later in the component lifecycle we can build the shadow DOM, the more opportunity we might have for beneficial code patterns having to do with drawing, or *rendering*, the component.
 
 Here are the steps we'll take.
 
@@ -219,4 +245,118 @@ render() {
 
 Our `render` method is simple in implementation, but the control flow is profound. The implementation simply assigns the value of the component's state, `_value`, to the value property of our `<input>` element, nestled safely in the component's shadow DOM. Whenever we notice a change in the `_value` state, either through a change in the component's `value` attribute or through something like an event handler, we make sure to call the `render` method so we can bring the `<input>` element up to date.
 
-If you're not already familiar with "render-on-state-change" flows, such as in Facebook's *React* framework, you will get a sense for the power of functional reactive programming through this technique. When we centralize reactions to state changes in a single place, the `render` method, we reduce problems in code maintenance and increase code understanding.
+> When you detect a change in state, call the `render` method.
+
+If you're not already familiar with "render-on-state-change" flows, such as in Facebook's *React* framework, you will get a sense for the power of functional reactive programming through this technique. When we centralize reactions to state changes in a single place, the `render` method, we reduce problems in code maintenance and increase code readability.
+
+Here is the web component's complete code to this point, followed by an interactive CodePen session.
+
+**SpinBox.js**
+```
+class SpinBox extends HTMLElement {
+
+  constructor() {
+    // Always call super first in constructor
+    super();
+
+    console.log('SpinBox constructor called');
+
+    // Initialize the sole state member, _value.
+    this._value = 0;
+  }
+
+  // Specify observed attributes for invocation of attributeChangedCallback
+  static get observedAttributes() {
+    return ['value'];
+  }
+
+  connectedCallback() {
+    console.log('SpinBox added to page: connectedCallback');
+
+    const root = this.attachShadow({ mode: 'open' });
+
+    // Set the custom element host style
+    this.style.display = 'inline-grid';
+
+    // Create an <input> element, set its style, and add
+    // an event listener
+    const inputElem = document.createElement('input');
+    inputElem.id = 'input';
+    inputElem.style.gridRowEnd = 3;
+    inputElem.style.gridRowStart = 1;
+    inputElem.style.textAlign = 'right';
+    inputElem.addEventListener('input', () => {
+      this._value = inputElem.value;
+      this.render();
+    });
+
+    // Create a <button> element for incrementing the SpinBox value,
+    // set its style, and add an event listener
+    const upButton = document.createElement('button');
+    upButton.id = 'upButton';
+    upButton.textContent = '▲';
+    upButton.style.gridColumn = 2;
+    upButton.style.userSelect = 'none';
+    upButton.addEventListener('mousedown', () => {
+      this._value++;
+      this.render();
+    });
+
+    // Create a <button> element for decrementing the SpinBox value,
+    // set its style, and add an event listener
+    const downButton = document.createElement('button');
+    downButton.id = 'downButton';
+    downButton.textContent = '▼';
+    downButton.style.gridColumn = 2;
+    downButton.style.userSelect = 'none';
+    downButton.addEventListener('mousedown', () => {
+      this._value--;
+      this.render();
+    });
+
+    // Append the input element and two buttons to the shadow root
+    root.appendChild(inputElem);
+    root.appendChild(upButton);
+    root.appendChild(downButton);
+
+    // Finally, render the element to reflect the state of
+    // the "value" attribute
+    this.render();
+  }
+  
+  attributeChangedCallback(name, oldValue, newValue) {
+    console.log('SpinBox attributes changed: attributeChangedCallback');
+
+    // Look for a change in the "value" attribute and render if necessary
+    if (name === 'value' && oldValue !== newValue) {
+      this._value = parseInt(newValue);
+
+      this.render();
+    }
+  }
+
+  disconnectedCallback() {
+    console.log('SpinBox removed from page: disconnectedCallback');
+  }
+
+  adoptedCallback() {
+    console.log('SpinBox moved to new page: adoptedCallback');
+  }
+
+  render() {
+    this.shadowRoot.getElementById('input').value = this._value;
+  }
+}
+
+customElements.define('spin-box', SpinBox);
+```
+
+**CodePen)**
+<p>
+  <p class="codepen" data-height="300" data-theme-id="dark" data-default-tab="js" data-user="robbear" data-slug-hash="bGpZwwz" style="height: 300px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 2px solid; margin: 1em 0; padding: 1em;" data-pen-title="SpinBox-001">
+    <span>See the Pen <a href="https://codepen.io/robbear/pen/bGpZwwz">
+    SpinBox-001</a> by Rob Bearman (<a href="https://codepen.io/robbear">@robbear</a>)
+    on <a href="https://codepen.io">CodePen</a>.</span>
+  </p>
+  <script async src="https://static.codepen.io/assets/embed/ei.js"></script>
+</p>
