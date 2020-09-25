@@ -351,7 +351,7 @@ class SpinBox extends HTMLElement {
 customElements.define('spin-box', SpinBox);
 ```
 
-**CodePen)**
+**CodePen**
 <p>
   <p class="codepen" data-height="300" data-theme-id="dark" data-default-tab="js" data-user="robbear" data-slug-hash="bGpZwwz" style="height: 300px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 2px solid; margin: 1em 0; padding: 1em;" data-pen-title="SpinBox-001">
     <span>See the Pen <a href="https://codepen.io/robbear/pen/bGpZwwz">
