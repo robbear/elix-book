@@ -55,7 +55,29 @@ Finally, the `customElements` object, attached to `window`, presents the `define
 
 This base class implementation isn't hard to remember. Now let's build on it by defining a simple but working web component that we'll call SpinBox which allows a user to increment or decrement an integer value. Our SpinBox implementation will leverage other aspects of the Web Components specification, including shadow DOM and templates.
 
-[Picture of SpinBox]
+**SpinBox**
+<p>
+  <style>
+    #spinContainer {
+      display: inline-grid;
+    }
+    #input {
+      grid-row-end: 3;
+      grid-row-start: 1;
+      text-align: right;
+    }
+    #upButton,
+    #downButton {
+      grid-column: 2;
+      user-select: none;
+    }
+  </style>
+  <div id="spinContainer">
+    <input id="input" value="7">
+    <button id="upButton">▲</button>
+    <button id="downButton">▼</button>
+  </div>
+</p>
 
 Our SpinBox implementation will follow the pattern above and add DOM elements that give it an actual shape and interactivity. We'll use an `<input>` element showing an integer count with two `<button>` elements, one for incrementing the count, the other for decrementing. We will make use of shadow DOM to encapsulate this group of HTML elements and its styling.
 
@@ -136,7 +158,14 @@ class SpinBox extends HTMLElement {
 customElements.define('spin-box', SpinBox);
 ```
 
-This is no different than what we had above, except for name changes and support for the `value` attribute. There is no internal DOM structure and nothing to display. Let's fix that by attaching some HTML so that we obtain a visual interface that looks like the following, with an `<input>` element and two `<button>` elements:
+This is no different than what we had above, except for name changes and support for the `value` attribute. There is no internal DOM structure and nothing to display. Let's fix that by attaching some HTML, with an `<input>` element and two `<button>` elements:
+
+**SpinBox HTML**
+```
+<input id="input" value="7">
+<button id="upButton">▲</button>
+<button id="downButton">▼</button>
+```
 
 **SpinBox UI**
 <p>
@@ -162,7 +191,7 @@ This is no different than what we had above, except for name changes and support
   </div>
 </p>
 
-We'll create the `<input>` and `<button>` elements and append them to a shadow root which we'll also create. We need to do this only once, but where? The constructor seems like a good place for initializing the shadow DOM, but we could also consider doing this work in `connectedCallback` which, like the constructor, is also called only once in the component's lifetime. The benefit of "inflating" the web component in `connectedCallback` is that it pushes this work back later in the lifecycle, after basic initialization work that might take place in the constructor or elsewhere (such as property settings as we'll see later). Let's hold onto the idea that the later in the component lifecycle we can build the shadow DOM, the more opportunity we might have for beneficial code patterns having to do with drawing, or *rendering*, the component.
+We'll create the `<input>` and `<button>` elements (and style them) and append them to a shadow root which we'll also create. We need to do this only once, but where? The constructor seems like a good place for initializing the shadow DOM, but we could also consider doing this work in `connectedCallback` which, like the constructor, is also called only once in the component's lifetime. The benefit of "inflating" the web component in `connectedCallback` is that it pushes this work back later in the lifecycle, after basic initialization work that might take place in the constructor or elsewhere (such as property settings as we'll see later). Let's hold onto the idea that the later in the component lifecycle we can build the shadow DOM, the more opportunity we might have for beneficial code patterns having to do with drawing, or *rendering*, the component.
 
 Here are the steps we'll take.
 
@@ -502,7 +531,7 @@ customElements.define('spin-box', SpinBox);
 
 **CodePen**
 <p>
-  <p class="codepen" data-height="300" data-theme-id="dark" data-default-tab="js,result" data-user="robbear" data-slug-hash="YzqgpWg" style="height: 300px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 2px solid; margin: 1em 0; padding: 1em;" data-pen-title="SpinBox-002">
+  <p class="codepen" data-height="300" data-theme-id="dark" data-default-tab="js" data-user="robbear" data-slug-hash="YzqgpWg" style="height: 300px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 2px solid; margin: 1em 0; padding: 1em;" data-pen-title="SpinBox-002">
     <span>See the Pen <a href="https://codepen.io/robbear/pen/YzqgpWg">
     SpinBox-002</a> by Rob Bearman (<a href="https://codepen.io/robbear">@robbear</a>)
     on <a href="https://codepen.io">CodePen</a>.</span>
