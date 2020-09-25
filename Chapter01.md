@@ -51,6 +51,8 @@ A web component, at its core, is obviously very simple. The class extends `HTMLE
 
 Finally, the `customElements` object, attached to `window`, presents the `define` method that asks for the new component's HTML tag string, and associates it with the component's class name. Remember that web component tag strings **must** contain at least one hyphen.
 
+## SpinBox Web Component
+
 This base class implementation isn't hard to remember. Now let's build on it by defining a simple but working web component that we'll call SpinBox which allows a user to increment or decrement an integer value. Our SpinBox implementation will leverage other aspects of the Web Components specification, including shadow DOM and templates.
 
 [Picture of SpinBox]
@@ -356,6 +358,153 @@ customElements.define('spin-box', SpinBox);
   <p class="codepen" data-height="300" data-theme-id="dark" data-default-tab="js" data-user="robbear" data-slug-hash="bGpZwwz" style="height: 300px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 2px solid; margin: 1em 0; padding: 1em;" data-pen-title="SpinBox-001">
     <span>See the Pen <a href="https://codepen.io/robbear/pen/bGpZwwz">
     SpinBox-001</a> by Rob Bearman (<a href="https://codepen.io/robbear">@robbear</a>)
+    on <a href="https://codepen.io">CodePen</a>.</span>
+  </p>
+  <script async src="https://static.codepen.io/assets/embed/ei.js"></script>
+</p>
+
+## Property API and State
+
+In our first pass, we use the member variable, `_value`, to maintain state and whenever we change `_value`, we call the `render` method. Let's refine this a bit, in preparation of exposing a public `value` property on the SpinBox web component and to enhance the flow pattern of the code.
+
+Notice that we call the `render` method five times in the implementation above. We can minimize that if we centralize where we detect a change to the `_value` state, and we can get a leg up on future work by defining a `value` property where we call the `render` method in the `value` property `setter` if there's a change in the `_value` state. That is, we keep `_value` private in the class as a state object while exposing access to that state through a property. The property's `getter` and `setter` allows us to inject any actions we want to take during the reading or writing of the property.
+
+Here's our property implementation:
+
+**Value property getter and setter**
+```
+get value() {
+  return this._value;
+}
+set value(value) {
+  // Look for a change in the "value" state and render if necessary
+  if (value !== this._value) {
+    this._value = value;
+    this.render();
+  }
+}
+```
+
+The `getter` simply returns the `_value` state, while the `setter` looks for a change in state, assigns the change to the state member variable and calls `render` to display the change in visualization.
+
+Next, we just need to walk through the code and replace instances where we access the `_value` member variable with the use of our new property. When we do so, we can reduce our calls to `_render` from five to two &mdash; as part of `connectedCallback` and in the `value` property setter. Remember that we no longer need to call `_render` when we change the `value` *property* as opposed to the `_value` state variable directly, because when we set the property, the property `setter` takes care of making the call to `render` for us.
+
+We've introduced a new pattern here.
+
+> Centralize change in state where possible in a property `setter`
+
+Here's the new code:
+
+**SpinBox.js with a `value` property**
+```
+class SpinBox extends HTMLElement {
+
+  constructor() {
+    // Always call super first in constructor
+    super();
+
+    console.log('SpinBox constructor called');
+
+    // Initialize the sole state member, _value.
+    this._value = 0;
+  }
+
+  // Specify observed attributes for invocation of attributeChangedCallback
+  static get observedAttributes() {
+    return ['value'];
+  }
+
+  connectedCallback() {
+    console.log('SpinBox added to page: connectedCallback');
+
+    const root = this.attachShadow({ mode: 'open' });
+    
+    // Set the custom element host style
+    this.style.display = 'inline-grid';
+
+    // Create an <input> element, set its style, and add
+    // an event listener
+    const inputElem = document.createElement('input');
+    inputElem.id = 'input';
+    inputElem.style.gridRowEnd = 3;
+    inputElem.style.gridRowStart = 1;
+    inputElem.style.textAlign = 'right';
+    inputElem.addEventListener('input', () => {
+      this.value = inputElem.value;
+    });
+
+    // Create a <button> element for incrementing the SpinBox value,
+    // set its style, and add an event listener
+    const upButton = document.createElement('button');
+    upButton.id = 'upButton';
+    upButton.textContent = '▲';
+    upButton.style.gridColumn = 2;
+    upButton.style.userSelect = 'none';
+    upButton.addEventListener('mousedown', () => {
+      this.value++;
+    });
+
+    // Create a <button> element for decrementing the SpinBox value,
+    // set its style, and add an event listener
+    const downButton = document.createElement('button');
+    downButton.id = 'downButton';
+    downButton.textContent = '▼';
+    downButton.style.gridColumn = 2;
+    downButton.style.userSelect = 'none';
+    downButton.addEventListener('mousedown', () => {
+      this.value--;
+    });
+
+    // Append the input element and two buttons to the shadow root
+    root.appendChild(inputElem);
+    root.appendChild(upButton);
+    root.appendChild(downButton);
+
+    // Finally, render the element to reflect the state of
+    // the "value" property
+    this.render();
+  }
+
+  disconnectedCallback() {
+    console.log('SpinBox removed from page: disconnectedCallback');
+  }
+
+  adoptedCallback() {
+    console.log('SpinBox moved to new page: adoptedCallback');
+  }
+
+  attributeChangedCallback(name, oldValue, newValue) {
+    console.log('SpinBox attributes changed: attributeChangedCallback');
+
+    if (name === 'value') {
+      this.value = parseInt(newValue);
+    }
+  }
+
+  get value() {
+    return this._value;
+  }
+  set value(value) {
+    // Look for a change in the "value" state and render if necessary
+    if (value !== this._value) {
+      this._value = value;
+      this.render();
+    }
+  }
+
+  render() {
+    this.shadowRoot.getElementById('input').value = this.value;
+  }
+}
+
+customElements.define('spin-box', SpinBox);
+```
+
+**CodePen**
+<p>
+  <p class="codepen" data-height="300" data-theme-id="dark" data-default-tab="js,result" data-user="robbear" data-slug-hash="YzqgpWg" style="height: 300px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 2px solid; margin: 1em 0; padding: 1em;" data-pen-title="SpinBox-002">
+    <span>See the Pen <a href="https://codepen.io/robbear/pen/YzqgpWg">
+    SpinBox-002</a> by Rob Bearman (<a href="https://codepen.io/robbear">@robbear</a>)
     on <a href="https://codepen.io">CodePen</a>.</span>
   </p>
   <script async src="https://static.codepen.io/assets/embed/ei.js"></script>
