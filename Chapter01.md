@@ -266,7 +266,7 @@ connectedCallback() {
 }
 ```
 
-And we define the `render` method as such:
+And we implement the `render` method to display the current `_value` state by finding the `input` element inside our shadow DOM.
 
 ```
 render() {
@@ -422,7 +422,7 @@ We've introduced a new pattern here.
 
 > Centralize change in state where possible in a property `setter`
 
-Here's the new code:
+Here's the new code where we replace direct access to the `_value` state member variable with the `value` property `getter` and `setter`:
 
 **SpinBox.js with a `value` property**
 ```
