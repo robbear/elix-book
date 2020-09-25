@@ -154,7 +154,7 @@ This is no different than what we had above, except for name changes and support
     }
   </style>
   <div id="spinContainer">
-    <input id="input" value="7"></input>
+    <input id="input" value="7">
     <button id="upButton">▲</button>
     <button id="downButton">▼</button>
   </div>
