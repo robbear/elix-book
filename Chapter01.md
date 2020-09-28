@@ -708,4 +708,173 @@ customElements.define('spin-box', SpinBox);
 
 ## Attach the Shadow DOM in `render`
 
-Let's push the creation of the shadow DOM a bit further in the process, and make the render method the center of our reactive flow. When we move the work to create the shadow DOM from our template to the render method, interesting patterns emerge.
+We chose to create the shadow DOM in the component's `connectedCallback` method, after which we call the `render` method. This seems curious. Isn't the creation of DOM elements for display kind of a render action? Certainly it happens only once, and `connectedCallback` is a useful place for one-time initializations, but what might we gain by pushing the shadow DOM creation off to the `render` method itself?
+
+The `render` method has a curious guard &mdash; checking for the existence of the shadow root. That feels like a hint that maybe there's a better pattern. Since `render` is called potentially repeatedly in the component's lifetime, namely when the component's state changes, we'll need to make sure we create the shadow DOM only once, namely when we render the component for the first time. We also want to create event listeners for the elements in the shadow DOM once. So perhaps we consolidate all of this in the `render` method, noting the first render call. If we move the shadow DOM creation code from `connectedCallback` to `render`, we get this:
+
+```
+connectedCallback() {
+  console.log('SpinBox added to page: connectedCallback');
+
+  // The connectedCallback method reduces simply to calling
+  // the render method with initial state, emphasizing render as the core 
+  // of our reactive functional programming model.
+  this.render();
+}
+
+render() {
+  const firstRender = !this.shadowRoot;
+  if (firstRender) {
+    //
+    // This portion looks like it might be code common to any
+    // custom element we design.
+    //
+    const root = this.attachShadow({ mode: 'open' });
+    const spinBoxTemplate = document.getElementById('spinBoxTemplate');
+    const clone = document.importNode(spinBoxTemplate.content, true);
+    root.appendChild(clone);
+
+    //
+    // This next section looks like initialization of elements
+    // appended to the shadow DOM, another potential pattern.
+    //
+
+    // Hook up the 'input' element's event listener(s)
+    const inputElement = root.getElementById('input');
+    inputElement.addEventListener('input', () => {
+      this.value = inputElem.value;
+    });
+
+    // Hook up the 'upButton' element's event listener(s)
+    const upButton = root.getElementById('upButton');
+    upButton.addEventListener('mousedown', () => {
+      this.value++;
+    });
+
+    // Hook up the 'downButton' element's event listener(s)
+    const downButton = root.getElementById('downButton');
+    downButton.addEventListener('mousedown', () => {
+      this.value--;
+    });  
+  }
+
+  this.shadowRoot.getElementById('input').value = this.value;
+}
+```
+
+At the bottom of the `render` method, we see our familiar call to set the `value` property of the `input` element to the current component state. We no longer have the guard in place, checking for the existence of the shadow root. The reason for that is that we check further up in the method. If no shadow root exists, if we haven't initialized the shadow DOM, we recognize that the code flow has entered the `render` method for the first time. If we're in that first render, we go ahead and initialize and attach the shadow DOM.
+
+Let's back up a bit and see what we've gained. We've glossed over the fact that we've had two possibilities for entering the `render` method for the first time. Both `attributeChangedCallback` and `connectedCallback` result in calls to `render` &mdash; in the case of `attributeChangedCallback` that happens in the change of state in the case where the `value` attribute is set in the HTML tag (look again at the `template` we use). In the case of `connectedCallback`, the `render` method is called directly. So if we have no initial `value` attribute in the `template`, `connectedCallback` would be called first. We need to handle both cases. By moving the shadow DOM creation code as a "first render" case in the `render` method, we can drop the guard at the bottom of the `render` method and ensure the shadow DOM is initialized the first time through as well as having a convenient way of identifying the first render: when the shadow root doesn't yet exist.
+
+Now we can see some patterns opening up that might be common to any web component we write. First, we force the code flow through the `render` method in both initialization cases of starting with an initial attribute/property setting, and in `connectedCallback`. So the `render` method is where we do "interesting" stuff, particularly revolving around, well, *rendering*.
+
+Second, the section of code that fetches the `template` element and "stamps" the shadow DOM structure under the shadow root seems particular to any web component we might write. There's nothing in that section particular to this SpinBox component. It looks like common code:
+
+```
+const root = this.attachShadow({ mode: 'open' });
+const spinBoxTemplate = document.getElementById('spinBoxTemplate');
+const clone = document.importNode(spinBoxTemplate.content, true);
+root.appendChild(clone);
+```
+
+Third, there is the section where we initialize event handlers and possibly other one-time tasks. This is particular to the SpinBox component, but common in the abstract. We have a pattern where component-internal initialization takes place in the component's first render.
+
+And finally, we make changes to the DOM based on any change in component state.
+
+Here's what our code looks like now:
+
+**SpinBox.js**
+```
+class SpinBox extends HTMLElement {
+
+  constructor() {
+    // Always call super first in constructor
+    super();
+
+    console.log('SpinBox constructor called');
+
+    // Initialize the sole state member, _value.
+    this._value = 0;
+  }
+
+  // Specify observed attributes for invocation of attributeChangedCallback
+  static get observedAttributes() {
+    return ['value'];
+  }
+
+  connectedCallback() {
+    console.log('SpinBox added to page: connectedCallback');
+
+    this.render();
+  }
+
+  disconnectedCallback() {
+    console.log('SpinBox removed from page: disconnectedCallback');
+  }
+
+  adoptedCallback() {
+    console.log('SpinBox moved to new page: adoptedCallback');
+  }
+
+  attributeChangedCallback(name, oldValue, newValue) {
+    console.log('SpinBox attributes changed: attributeChangedCallback');
+
+    if (name === 'value') {
+      this.value = parseInt(newValue);
+    }
+  }
+
+  get value() {
+    return this._value;
+  }
+  set value(value) {
+    // Look for a change in the "value" state and render if necessary
+    if (value !== this._value) {
+      this._value = value;
+      this.render();
+    }
+  }
+
+  render() {
+    const firstRender = !this.shadowRoot;
+    if (firstRender) {
+      const root = this.attachShadow({ mode: 'open' });
+      const spinBoxTemplate = document.getElementById('spinBoxTemplate');
+      const clone = document.importNode(spinBoxTemplate.content, true);
+      root.appendChild(clone);
+  
+      // Hook up the 'input' element's event listener(s)
+      const inputElement = root.getElementById('input');
+      inputElement.addEventListener('input', () => {
+        this.value = inputElem.value;
+      });
+  
+      // Hook up the 'upButton' element's event listener(s)
+      const upButton = root.getElementById('upButton');
+      upButton.addEventListener('mousedown', () => {
+        this.value++;
+      });
+  
+      // Hook up the 'downButton' element's event listener(s)
+      const downButton = root.getElementById('downButton');
+      downButton.addEventListener('mousedown', () => {
+        this.value--;
+      });  
+    }
+
+    this.shadowRoot.getElementById('input').value = this.value;
+  }
+}
+
+customElements.define('spin-box', SpinBox);
+```
+
+**CodePen**
+<p>
+  <p class="codepen" data-height="300" data-theme-id="dark" data-default-tab="js" data-user="robbear" data-slug-hash="WNwWLey" style="height: 300px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 2px solid; margin: 1em 0; padding: 1em;" data-pen-title="SpinBox-004">
+    <span>See the Pen <a href="https://codepen.io/robbear/pen/WNwWLey">
+    SpinBox-004</a> by Rob Bearman (<a href="https://codepen.io/robbear">@robbear</a>)
+    on <a href="https://codepen.io">CodePen</a>.</span>
+  </p>
+  <script async src="https://static.codepen.io/assets/embed/ei.js"></script>
+</p>
