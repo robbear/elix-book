@@ -116,7 +116,9 @@ class SpinBox extends HTMLElement {
   // the SpinBox's state, namely its "value" attribute.
   //
   render() {
-    this.shadowRoot.getElementById('input').value = this._value;
+    if (this.shadowRoot) {
+      this.shadowRoot.getElementById('input').value = this._value;
+    }
   }
 }
 

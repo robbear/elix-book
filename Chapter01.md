@@ -266,11 +266,13 @@ connectedCallback() {
 }
 ```
 
-And we implement the `render` method to display the current `_value` state by finding the `input` element inside our shadow DOM.
+And we implement the `render` method to display the current `_value` state by finding the `input` element inside our shadow DOM. We need to check for the existence of the shadowRoot in cases where `render` may be called prior to the creation of the shadow root, such as in an initial change in attribute at component creation time.
 
 ```
 render() {
-  this.shadowRoot.getElementById('input').value = this._value;
+  if (this.shadowRoot) {
+    this.shadowRoot.getElementById('input').value = this._value;
+  }
 }
 ```
 
@@ -375,7 +377,9 @@ class SpinBox extends HTMLElement {
   }
 
   render() {
-    this.shadowRoot.getElementById('input').value = this._value;
+    if (this.shadowRoot) {
+      this.shadowRoot.getElementById('input').value = this._value;
+    }
   }
 }
 
@@ -522,7 +526,9 @@ class SpinBox extends HTMLElement {
   }
 
   render() {
-    this.shadowRoot.getElementById('input').value = this.value;
+    if (this.shadowRoot) {
+      this.shadowRoot.getElementById('input').value = this.value;
+    }
   }
 }
 
@@ -538,3 +544,168 @@ customElements.define('spin-box', SpinBox);
   </p>
   <script async src="https://static.codepen.io/assets/embed/ei.js"></script>
 </p>
+
+## Shadow DOM and HTML Templates
+
+In `connectedCallback` we painstakingly create our shadow DOM imperatively, writing code to create, style, and append the `input` and two `button` elements. While using the DOM API to create and append elements might be useful in certain scenarios, it is inefficient from a design iteration and visualization perspective. What we want is to see the HTML that makes up the shadow DOM in our web component. We want to construct the shadow DOM as we would construct a page, with HTML.
+
+We can do that with an HTML Template. What we'll do is define a `template` element declaratively and find a way to "stamp" that structure into the shadow DOM of our web component. Let's start by adding a `template` to our `index.html` file.
+
+**index.html**
+```
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SpinBox Test</title>
+
+    <template id="spinBoxTemplate">
+      <style>
+        :host {
+          display: inline-grid;
+        }
+
+        #input {
+          grid-row-end: 3;
+          grid-row-start: 1;
+          text-align: right;
+        }
+
+        #upButton,
+        #downButton {
+          grid-column: 2;
+          user-select: none;
+        }
+      </style>
+      <input id="input"></input>
+      <button id="upButton">▲</button>
+      <button id="downButton">▼</button>
+    </template>
+
+    <script defer src="SpinBox.js"></script>
+  </head>
+  <body>
+    <h1>SpinBox Test</h1>
+    <spin-box></spin-box>
+  </body>
+</html>
+```
+
+The elements we created in JavaScript are not specified within the `template` element above: an `input` element and two `button` elements, along with styling.
+
+Now, instead of creating the shadow DOM elements one by one with code, we can fetch the `template`, get its contents, and append to the shadow root.
+
+```
+const root = this.attachShadow({ mode: 'open' });
+
+// Get the SpinBox's template and "stamp" its content to the shadow DOM
+const spinBoxTemplate = document.getElementById('spinBoxTemplate');
+const clone = document.importNode(spinBoxTemplate.content, true);
+root.appendChild(clone);
+```
+
+Three lines and some declarative HTML replace the element-by-element code we wrote before. This change lets us layout and design the web component more naturally, gives us an inkling that delivering a `template` as part of our code pattern is something to watch for as we progress.
+
+**SpinBox.js**
+```
+class SpinBox extends HTMLElement {
+
+  constructor() {
+    // Always call super first in constructor
+    super();
+
+    console.log('SpinBox constructor called');
+
+    // Initialize the sole state member, _value.
+    this._value = 0;
+  }
+
+  // Specify observed attributes for invocation of attributeChangedCallback
+  static get observedAttributes() {
+    return ['value'];
+  }
+
+  connectedCallback() {
+    console.log('SpinBox added to page: connectedCallback');
+
+    const root = this.attachShadow({ mode: 'open' });
+
+    // Get the SpinBox's template and "stamp" its content to the shadow DOM
+    const spinBoxTemplate = document.getElementById('spinBoxTemplate');
+    const clone = document.importNode(spinBoxTemplate.content, true);
+    root.appendChild(clone);
+
+    // Hook up the 'input' element's event listener(s)
+    const inputElement = root.getElementById('input');
+    inputElement.addEventListener('input', () => {
+      this.value = inputElem.value;
+    });
+
+    // Hook up the 'upButton' element's event listener(s)
+    const upButton = root.getElementById('upButton');
+    upButton.addEventListener('mousedown', () => {
+      this.value++;
+    });
+
+    // Hook up the 'downButton' element's event listener(s)
+    const downButton = root.getElementById('downButton');
+    downButton.addEventListener('mousedown', () => {
+      this.value--;
+    });
+
+    // Finally, render the element to reflect the state of
+    // the "value" property
+    this.render();
+  }
+
+  disconnectedCallback() {
+    console.log('SpinBox removed from page: disconnectedCallback');
+  }
+
+  adoptedCallback() {
+    console.log('SpinBox moved to new page: adoptedCallback');
+  }
+
+  attributeChangedCallback(name, oldValue, newValue) {
+    console.log('SpinBox attributes changed: attributeChangedCallback');
+
+    if (name === 'value') {
+      this.value = parseInt(newValue);
+    }
+  }
+
+  get value() {
+    return this._value;
+  }
+  set value(value) {
+    // Look for a change in the "value" state and render if necessary
+    if (value !== this._value) {
+      this._value = value;
+      this.render();
+    }
+  }
+
+  render() {
+    if (this.shadowRoot) {
+      this.shadowRoot.getElementById('input').value = this.value;
+    }
+  }
+}
+
+customElements.define('spin-box', SpinBox);
+```
+
+**CodePen**
+<p>
+  <p class="codepen" data-height="300" data-theme-id="dark" data-default-tab="js" data-user="robbear" data-slug-hash="GRZLwjp" style="height: 300px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 2px solid; margin: 1em 0; padding: 1em;" data-pen-title="SpinBox-003">
+    <span>See the Pen <a href="https://codepen.io/robbear/pen/GRZLwjp">
+    SpinBox-003</a> by Rob Bearman (<a href="https://codepen.io/robbear">@robbear</a>)
+    on <a href="https://codepen.io">CodePen</a>.</span>
+  </p>
+  <script async src="https://static.codepen.io/assets/embed/ei.js"></script>
+</p>
+
+## Attach the Shadow DOM in `render`
+
+Let's push the creation of the shadow DOM a bit further in the process, and make the render method the center of our reactive flow. When we move the work to create the shadow DOM from our template to the render method, interesting patterns emerge.
