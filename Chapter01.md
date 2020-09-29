@@ -878,3 +878,251 @@ customElements.define('spin-box', SpinBox);
   </p>
   <script async src="https://static.codepen.io/assets/embed/ei.js"></script>
 </p>
+
+## `renderHelper`, `componentFirstRender`, and template `getter`
+
+We've identified patterns above that may be either code that is shared unchanged among *any* component we might write, and common methods whose implementation is particular to a component. Let's look at these more closely and factor them out into new code.
+
+First, we've identified a section where the component supplies a `template` and the code applies that `template` to the shadow DOM. Again, that's this section of code:
+
+```
+const root = this.attachShadow({ mode: 'open' });
+const spinBoxTemplate = document.getElementById('spinBoxTemplate');
+const clone = document.importNode(spinBoxTemplate.content, true);
+root.appendChild(clone);
+```
+
+Note that the second line of this fragment directly specifies the `id` of the `template` element in order to find it via `document.getElementById`. We can generalize this if we make the assumption (or imply a contract), that the component will provide a `getter` for, say, a template property. So the above becomes:
+
+```
+const root = this.attachShadow({ mode: 'open' });
+const templateElement = this.template;
+const clone = document.importNode(templateElement.content, true);
+root.appendChild(clone);
+```
+
+This means the component, and presumably all components using this pattern, will satisfy the `this.template` requirement:
+
+```
+get template() {
+  return document.getElementById('spinBoxTemplate');
+}
+```
+
+If we assume the component supplies a `get template()`, then we're on the verge of having a generalized helper method:
+
+```
+// Proposed: a helper method
+renderHelper() {
+  // This helper method will provide, at least, the following code
+  const root = this.attachShadow({ mode: 'open' });
+  const templateElement = this.template;
+  const clone = document.importNode(templateElement.content, true);
+  root.appendChild(clone);
+}
+```
+
+There's one more common pattern in our `render` method that we can push out to `renderHelper`, and that's the detection of whether `this.shadowRoot` exists and thereby whether we are rendering for the first time. The caller to `renderHelper` probably wants to know whether it's a first-time render, so we `renderHelper` can return that boolean:
+
+```
+renderHelper() {
+  const firstRender = !this.shadowRoot;
+
+  if (firstRender) {
+    const root = this.attachShadow({ mode: 'open' });
+    const templateElement = this.template;
+    const clone = document.importNode(templateElement.content, true);
+    root.appendChild(clone);
+  }
+
+  // Return the value of firstRender, since the initialization
+  // state may be of great interest.
+  return firstRender;
+}
+```
+The `renderHelper` method does work only one time. If it finds it has already created the shadow root, it simply returns `firstRender` as `false`. So it's safe to call `renderHelper` anytime we call `render`.
+
+Now the `render` method, particular to the SpinBox component, becomes:
+
+```
+render() {
+  const firstRender = this.renderHelper();
+  if (firstRender) {
+    // Hook up event handlers and other first-time render initialization
+    // ...
+  }
+
+  // Finally, render the changes in state, which in this case
+  // is the value property.
+  this.shadowRoot.getElementById('input').value = this.value;
+}
+```
+
+We left out the first-time render initialization code, so let's fill that in. We can finalize the code pattern by factoring out one-time initialization steps into a method we can call `componentFirstRender`.
+
+```
+componentFirstRender() {
+  console.log('SpinBox componentFirstRender called');
+
+  // Hook up the 'input' element's event listener(s)
+  const inputElement = this.shadowRoot.getElementById('input');
+  inputElement.addEventListener('input', () => {
+    this.value = inputElem.value;
+  });
+
+  // Hook up the 'upButton' element's event listener(s)
+  const upButton = this.shadowRoot.getElementById('upButton');
+  upButton.addEventListener('mousedown', () => {
+    this.value++;
+  });
+
+  // Hook up the 'downButton' element's event listener(s)
+  const downButton = this.shadowRoot.getElementById('downButton');
+  downButton.addEventListener('mousedown', () => {
+    this.value--;
+  });  
+}
+
+render() {
+  const firstRender = this.renderHelper();
+  if (firstRender) {
+    // Let's isolate one-time initialization code outside
+    // our render method.
+    this.componentFirstRender();  
+  }
+
+  // Finally, render the changes in state, which in this case
+  // is the value property.
+  this.shadowRoot.getElementById('input').value = this.value;
+}
+```
+
+The `render` method is now very concise. It hands off to `renderHelper` for the common task of creating the shadow DOM with the help of the component's template `getter`. It also lets us know whether we're handling a first-time render, in which case we call `this.componentFirstRender`. After that initialization section, and since we're guaranteed that the shadow root exists, we can go about the task of manipulating the shadow DOM based on the component's changed state.
+
+The component code now looks like this.
+
+**SpinBox.js**
+```
+class SpinBox extends HTMLElement {
+
+  constructor() {
+    // Always call super first in constructor
+    super();
+
+    console.log('SpinBox constructor called');
+
+    // Initialize the sole state member, _value.
+    this._value = 0;
+  }
+
+  // Specify observed attributes for invocation of attributeChangedCallback
+  static get observedAttributes() {
+    return ['value'];
+  }
+
+  connectedCallback() {
+    console.log('SpinBox added to page: connectedCallback');
+
+    this.render();
+  }
+
+  disconnectedCallback() {
+    console.log('SpinBox removed from page: disconnectedCallback');
+  }
+
+  adoptedCallback() {
+    console.log('SpinBox moved to new page: adoptedCallback');
+  }
+
+  attributeChangedCallback(name, oldValue, newValue) {
+    console.log('SpinBox attributes changed: attributeChangedCallback');
+
+    if (name === 'value') {
+      this.value = parseInt(newValue);
+    }
+  }
+
+  get value() {
+    return this._value;
+  }
+  set value(value) {
+    // Look for a change in the "value" state and render if necessary
+    if (value !== this._value) {
+      this._value = value;
+      this.render();
+    }
+  }
+
+  //
+  // We handle first render initialization, like hooking up
+  // event handlers, here.
+  //
+  componentFirstRender() {
+    console.log('SpinBox componentFirstRender called');
+
+    // Hook up the 'input' element's event listener(s)
+    const inputElement = this.shadowRoot.getElementById('input');
+    inputElement.addEventListener('input', () => {
+      this.value = inputElem.value;
+    });
+
+    // Hook up the 'upButton' element's event listener(s)
+    const upButton = this.shadowRoot.getElementById('upButton');
+    upButton.addEventListener('mousedown', () => {
+      this.value++;
+    });
+
+    // Hook up the 'downButton' element's event listener(s)
+    const downButton = this.shadowRoot.getElementById('downButton');
+    downButton.addEventListener('mousedown', () => {
+      this.value--;
+    });  
+  }
+
+  get template() {
+    return document.getElementById('spinBoxTemplate');
+  }
+
+  //
+  // Common code that we're factoring out that asks for a template
+  // and "stamps" that template into the shadow DOM. Notice how
+  // this method contains no code at all pertaining to the details
+  // of the SpinBox class.
+  //
+  renderHelper() {
+    const firstRender = !this.shadowRoot;
+
+    if (firstRender) {
+      const root = this.attachShadow({ mode: 'open' });
+      const templateElement = this.template;
+      const clone = document.importNode(templateElement.content, true);
+      root.appendChild(clone);
+    }
+
+    // Return the value of firstRender, since the initialization
+    // state may be of great interest.
+    return firstRender;
+  }
+
+  render() {
+    const firstRender = this.renderHelper();
+    if (firstRender) {
+      this.componentFirstRender();  
+    }
+
+    this.shadowRoot.getElementById('input').value = this.value;
+  }
+}
+
+customElements.define('spin-box', SpinBox);
+```
+
+**CodePen**
+<p>
+  <p class="codepen" data-height="300" data-theme-id="dark" data-default-tab="js" data-user="robbear" data-slug-hash="jOqoMdo" style="height: 300px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 2px solid; margin: 1em 0; padding: 1em;" data-pen-title="SpinBox-005">
+    <span>See the Pen <a href="https://codepen.io/robbear/pen/jOqoMdo">
+    SpinBox-005</a> by Rob Bearman (<a href="https://codepen.io/robbear">@robbear</a>)
+    on <a href="https://codepen.io">CodePen</a>.</span>
+  </p>
+  <script async src="https://static.codepen.io/assets/embed/ei.js"></script>
+</p>
