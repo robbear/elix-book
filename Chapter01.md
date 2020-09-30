@@ -6,6 +6,8 @@ Let's start by agreeing to some terms. *Web component* and *custom element* are 
 
 ## What does a minimal web component look like?
 
+[To do: start with `customElements.define` and explain how the DOM API recognizes and instantiates a web component.]
+
 A do-nothing, minimal web component has these pieces:
 
 * A JavaScript class that extends HTMLElement
@@ -1126,3 +1128,429 @@ customElements.define('spin-box', SpinBox);
   </p>
   <script async src="https://static.codepen.io/assets/embed/ei.js"></script>
 </p>
+
+## Mixins
+
+At this point, we have a pretty well-factored web component. Control flow is centered around a `render` method that gets called whenever the component's state is changed, as well as from the `connectedCallback` method. We instantiate the shadow DOM on the first call to `render` by means of a common helper method (`renderHelper`), and set up one-time initializations in a `componentFirstRender` method. We've implemented the four custom element callbacks, although we only make real use of `connectedCallback` and `attributeChangedCallback`. We've established a public property API that maps to an attribute, and we've implemented a template property `getter` for the common `renderHelper` method to call in order to instantiate the shadow DOM.
+
+The goal of this chapter is to roughly show how we identify patterns in web component development that inform some of the reasons why Elix was structured the way it is. Elix relies heavily on a collection of *mixins* and with this SpinBox example, we can begin to illustrate why and how they're used.
+
+We've identified a piece of common code that is independent of the semantics of the SpinBox component, code that is going to be common to any component we write in this render-centric manner. We've isolated that in the `renderHelper` method. Instead of copying that method into the source code for every component we write, it's pretty clear it belongs in a library of shared code. The mechanism that we'll choose for adding the `renderHelper` method to every component we write is by creating a mixin that implements that method. The reason why we would want to do that as a mixin will become clearer as we go on, but for now let's focus on the *how* rather than the *why*.
+
+A *mixin* is a class that contains methods for other classes. JavaScript supports *single inheritance* and the concept of mixins allows a class to share one or more sets of methods with other classes without affecting the class's inheretance or requiring *multiple inheritance*. We will be using a special pattern for creating mixins, which you can read about in more detail in ["Real" Mixins with JavaScript Classes](https://justinfagnani.com/2015/12/21/real-mixins-with-javascript-classes/). Let's look at this structure using our `renderHelper` method to illustrate. We'll create a mixin called `ShadowHelperMixin` which provides the implementation for the `renderHelper` method we've factored out earlier.
+
+**ShadowHelperMixin**
+```
+function ShadowHelperMixin(Base) {
+  return class ShadowHelper extends Base {
+    renderHelper() {
+      const firstRender = !this.shadowRoot;
+  
+      if (firstRender) {
+        const root = this.attachShadow({ mode: 'open' });
+        const templateElement = this.template;
+        const clone = document.importNode(templateElement.content, true);
+        root.appendChild(clone);
+      }
+  
+      // Return the value of firstRender, since the initialization
+      // state may be of great interest.
+      return firstRender;
+    }
+  };
+}
+```
+
+`ShadowHelperMixin` follows a mixin-factory pattern. It's a function that takes a base class as a parameter and returns a class. The class it returns extends the base class we fed it. What this pattern does for us is return to us a new class that extends our base class with the mixin's methods. The way we consume this is:
+
+```
+class SpinBox extends ShadowHelperMixin(HTMLElement) {
+  ...
+}
+```
+
+We want our class, SpinBox, to extend `HTMLElement` as before, but `HTMLElement` *with additional methods*, namely the `renderHelper` method.
+
+This pattern of mixins allows us to build independent modules of common code, while retaining some of the advantages of inheritance such as the ability to call `super` in order to pass control to method implementations of the same name up the prototype chain. The mixin pattern is critical for understanding Elix, as we'll see, since common web component behaviors can be expressed in carefully factored sets of mixins, where those mixins can be applied selectively depending on the needs of the component.
+
+Let's see how the SpinBox code changes when we factor out the `renderHelper` method into the `ShadowHelperMixin`.
+
+**ShadowHelperMixin.js**
+```
+function ShadowHelperMixin(Base) {
+  return class ShadowHelper extends Base {
+    renderHelper() {
+      const firstRender = !this.shadowRoot;
+  
+      if (firstRender) {
+        const root = this.attachShadow({ mode: 'open' });
+        const templateElement = this.template;
+        const clone = document.importNode(templateElement.content, true);
+        root.appendChild(clone);
+      }
+  
+      // Return the value of firstRender, since the initialization
+      // state may be of great interest.
+      return firstRender;
+    }
+  };
+}
+
+export default ShadowHelperMixin;
+```
+
+**SpinBox.js**
+```
+import ShadowHelperMixin from './ShadowHelperMixin.js';
+
+// Create a class for the element
+class SpinBox extends ShadowHelperMixin(HTMLElement) {
+
+  constructor() {
+    // Always call super first in constructor
+    super();
+
+    console.log('SpinBox constructor called');
+
+    // Initialize the sole state member, _value.
+    this._value = 0;
+  }
+
+  // Specify observed attributes for invocation of attributeChangedCallback
+  static get observedAttributes() {
+    return ['value'];
+  }
+
+  connectedCallback() {
+    console.log('SpinBox added to page: connectedCallback');
+
+    this.render();
+  }
+
+  disconnectedCallback() {
+    console.log('SpinBox removed from page: disconnectedCallback');
+  }
+
+  adoptedCallback() {
+    console.log('SpinBox moved to new page: adoptedCallback');
+  }
+
+  attributeChangedCallback(name, oldValue, newValue) {
+    console.log('SpinBox attributes changed: attributeChangedCallback');
+
+    if (name === 'value') {
+      this.value = parseInt(newValue);
+    }
+  }
+
+  get value() {
+    return this._value;
+  }
+  set value(value) {
+    // Look for a change in the "value" state and render if necessary
+    if (value !== this._value) {
+      this._value = value;
+      this.render();
+    }
+  }
+
+  componentFirstRender() {
+    console.log('SpinBox componentFirstRender called');
+
+    // Hook up the 'input' element's event listener(s)
+    const inputElement = this.shadowRoot.getElementById('input');
+    inputElement.addEventListener('input', () => {
+      this.value = inputElem.value;
+    });
+
+    // Hook up the 'upButton' element's event listener(s)
+    const upButton = this.shadowRoot.getElementById('upButton');
+    upButton.addEventListener('mousedown', () => {
+      this.value++;
+    });
+
+    // Hook up the 'downButton' element's event listener(s)
+    const downButton = this.shadowRoot.getElementById('downButton');
+    downButton.addEventListener('mousedown', () => {
+      this.value--;
+    });  
+  }
+
+  get template() {
+    return document.getElementById('spinBoxTemplate');
+  }
+
+  render() {
+    // We call renderHelper on the prototype chain. Notice that we're 
+    // not implementing it in this class, so the implementation is being provided
+    // by the ShadowHelperMixin.
+    const firstRender = this.renderHelper();
+    if (firstRender) {
+      this.componentFirstRender();  
+    }
+
+    this.shadowRoot.getElementById('input').value = this.value;
+  }
+}
+
+customElements.define('spin-box', SpinBox);
+```
+
+We've introduced a new file, ShadowHelperMixin.js, and it exports the `ShadowHelperMixin` factory function so that the `SpinBox` class can extend `HTMLElement`+`ShadowHelper`. In other words, with the `ShadowHelperMixin`, the `SpinBox` inherits from a mix of the `HTMLElement` class that includes additional methods, in this case `renderHelper`.
+
+Finally, we need to make one change to index.html, by adding the `module` attribute to the `<script>` tag since we're now using `import` in SpinBox.js.
+
+**index.html**
+```
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SpinBox Test</title>
+
+    <template id="spinBoxTemplate">
+      <style>
+        :host {
+          display: inline-grid;
+        }
+
+        #input {
+          grid-row-end: 3;
+          grid-row-start: 1;
+          text-align: right;
+        }
+
+        #upButton,
+        #downButton {
+          grid-column: 2;
+          user-select: none;
+        }
+      </style>
+      <input id="input"></input>
+      <button id="upButton">▲</button>
+      <button id="downButton">▼</button>
+    </template>
+
+    <script type="module" defer src="SpinBox.js"></script>
+  </head>
+  <body>
+    <h1>SpinBox Test</h1>
+    <spin-box value="7"></spin-box>
+  </body>
+</html>
+```
+
+**CodePen**
+<p>
+  <p class="codepen" data-height="300" data-theme-id="dark" data-default-tab="js" data-user="robbear" data-slug-hash="qBZGgJo" style="height: 300px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 2px solid; margin: 1em 0; padding: 1em;" data-pen-title="SpinBox-006">
+    <span>See the Pen <a href="https://codepen.io/robbear/pen/qBZGgJo">
+    SpinBox-006</a> by Rob Bearman (<a href="https://codepen.io/robbear">@robbear</a>)
+    on <a href="https://codepen.io">CodePen</a>.</span>
+  </p>
+  <script async src="https://static.codepen.io/assets/embed/ei.js"></script>
+</p>
+
+## Symbols
+
+Let's look at one more aspect in our use of the ShadowHelperMixin and its implementation of the `renderHelper` method. We realized earlier that the code pattern use of an HTML `template` for building the component's shadow DOM involved providing a template property `getter`. This is implemented in the SpinBox class code, and is accessed in the `renderHelper` mixin. There's a potential problem here.
+
+There's an expectation on the part of the mixin, via its `renderHelper` method, that the client of the mixin is providing a `getter` for a "template" property. That's a very specific contract. In a general matter, though, a property or method name might be intended to be kept private, out of the component's public API space. This is problematic in JavaScript since at least with ES 2015 there's no notion of private/hidden members. Developers often use an underscore to indicate the intention of private access, hoping other developers will shy away from accessing those methods and properties in fear they may change down the road. A better mechanism is the use of Symbols.
+
+Symbols let you create a named object where the object is opaque to code not privy to the object's creation. Symbols are particularly handy for use in a contract such as SpinBox's implementing a template property, and ShadowHelperMixin's need to access that property. The way it works is that ShadowHelperMixin defines a template symbol, and its client &mdash; SpinBox &mdash; imports and uses that symbol to name its "template" property implementation.
+
+**In ShadowHelperMixin**
+```
+export const template = Symbol("template");
+
+...
+
+const templateElement = this[template];
+```
+
+**In SpinBox.js***
+```
+import { ShadowHelperMixin, template } from './ShadowHelperMixin.js';
+
+...
+
+get [template]() {
+  return document.getElementById('spinBoxTemplate');
+}
+```
+
+This common pattern of using symbols for shared and private property/method names is used extensively in Elix. We'll use this in our SpinBox implementation to illustrate the concept, so here is our final code.
+
+**index.html**
+```
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SpinBox Test</title>
+
+    <template id="spinBoxTemplate">
+      <style>
+        :host {
+          display: inline-grid;
+        }
+
+        #input {
+          grid-row-end: 3;
+          grid-row-start: 1;
+          text-align: right;
+        }
+
+        #upButton,
+        #downButton {
+          grid-column: 2;
+          user-select: none;
+        }
+      </style>
+      <input id="input"></input>
+      <button id="upButton">▲</button>
+      <button id="downButton">▼</button>
+    </template>
+
+    <script type="module" defer src="SpinBox.js"></script>
+  </head>
+  <body>
+    <h1>SpinBox Test</h1>
+    <spin-box value="7"></spin-box>
+  </body>
+</html>
+```
+
+**ShadowHelperMixin.js**
+```
+export const template = Symbol("template");
+
+export const ShadowHelperMixin = (Base) => {
+  return class ShadowHelper extends Base {
+    renderHelper() {
+      const firstRender = !this.shadowRoot;
+  
+      if (firstRender) {
+        const root = this.attachShadow({ mode: 'open' });
+        const templateElement = this[template];
+        const clone = document.importNode(templateElement.content, true);
+        root.appendChild(clone);
+      }
+  
+      // Return the value of firstRender, since the initialization
+      // state may be of great interest.
+      return firstRender;
+    }
+  };
+}
+```
+
+**SpinBox.js**
+```
+import { ShadowHelperMixin, template } from './ShadowHelperMixin.js';
+
+class SpinBox extends ShadowHelperMixin(HTMLElement) {
+
+  constructor() {
+    // Always call super first in constructor
+    super();
+
+    console.log('SpinBox constructor called');
+
+    // Initialize the sole state member, _value.
+    this._value = 0;
+  }
+
+  // Specify observed attributes for invocation of attributeChangedCallback
+  static get observedAttributes() {
+    return ['value'];
+  }
+
+  connectedCallback() {
+    console.log('SpinBox added to page: connectedCallback');
+
+    this.render();
+  }
+
+  disconnectedCallback() {
+    console.log('SpinBox removed from page: disconnectedCallback');
+  }
+
+  adoptedCallback() {
+    console.log('SpinBox moved to new page: adoptedCallback');
+  }
+
+  attributeChangedCallback(name, oldValue, newValue) {
+    console.log('SpinBox attributes changed: attributeChangedCallback');
+
+    if (name === 'value') {
+      this.value = parseInt(newValue);
+    }
+  }
+
+  get value() {
+    return this._value;
+  }
+  set value(value) {
+    // Look for a change in the "value" state and render if necessary
+    if (value !== this._value) {
+      this._value = value;
+      this.render();
+    }
+  }
+
+  componentFirstRender() {
+    console.log('SpinBox componentFirstRender called');
+
+    // Hook up the 'input' element's event listener(s)
+    const inputElement = this.shadowRoot.getElementById('input');
+    inputElement.addEventListener('input', () => {
+      this.value = inputElem.value;
+    });
+
+    // Hook up the 'upButton' element's event listener(s)
+    const upButton = this.shadowRoot.getElementById('upButton');
+    upButton.addEventListener('mousedown', () => {
+      this.value++;
+    });
+
+    // Hook up the 'downButton' element's event listener(s)
+    const downButton = this.shadowRoot.getElementById('downButton');
+    downButton.addEventListener('mousedown', () => {
+      this.value--;
+    });  
+  }
+
+  get [template]() {
+    return document.getElementById('spinBoxTemplate');
+  }
+
+  render() {
+    const firstRender = this.renderHelper();
+    if (firstRender) {
+      this.componentFirstRender();  
+    }
+
+    this.shadowRoot.getElementById('input').value = this.value;
+  }
+}
+
+customElements.define('spin-box', SpinBox);
+```
+
+**CodePen**
+<p>
+  <p class="codepen" data-height="300" data-theme-id="dark" data-default-tab="js" data-user="robbear" data-slug-hash="ZEWNPxx" style="height: 300px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 2px solid; margin: 1em 0; padding: 1em;" data-pen-title="SpinBox-007">
+    <span>See the Pen <a href="https://codepen.io/robbear/pen/ZEWNPxx">
+    SpinBox-007</a> by Rob Bearman (<a href="https://codepen.io/robbear">@robbear</a>)
+    on <a href="https://codepen.io">CodePen</a>.</span>
+  </p>
+  <script async src="https://static.codepen.io/assets/embed/ei.js"></script>
+</p>
+
+## Patterns and Summary
+
+We've walked through a progression of sample code in building out the SpinBox component, starting with the bare essentials of how a web component announces itself to the DOM and registers its implementation class. We took a step-by-step approach in showing the motivation for a common pattern based on a *reactive* code flow where changes in the component's state results in a call to a render method. The render method serves as the central point where the component expresses its user interface. Along the way, we recognized patterns and best practices for identifying "meta state" such as when the component is rendering for the first time, when the best time is for instantiating the shadow DOM, and code patterns that will be common across any component we write. We ended up with mixins as a vehicle for code sharing, and symbols for sharing internal properties and methods to avoid name collisions.
+
+The way we walked through this progression may seem obvious, or perhaps contrived, but the more sophisticated implementation of Elix which we'll begin learning in more depth next is the result of having recognized and learned these patterns over time, both as the Web Component specification evolved, and as ES 2015 with its JavaScript extensions came into prominence. What you're seeing here is not a set of patterns that were knowable from the start, or magical in any way. You're seeing the results of many iterations. As the goal is to shine a light into the internals of Elix, understanding a sense of how these patterns were derived will give you confidence as you learn more about Elix that there's nothing magic, hidden, or unknowable about it. You have the ability to dive into any mixin implementation and understand how it fits into the whole.
