@@ -1,19 +1,35 @@
 # A Framework-Free SpinBox Web Component
 
-In this chapter, we're going to create a simple SpinBox web component using nothing but the ES 2015 JavaScript and our knowledge of the DOM.
+## Introduction
+
+Elix is a JavaScript library of high quality web components for common user interface patterns and a set of mixins. As you learn about Elix you might come to say, instead, that Elix is a JavaScript library of mixins which are used to create web components, and the web components that Elix provides pre-built are almost incidental. Elix was designed from the ground up to support the construction of high quality, native HTML-like elements that satisfy the goals of the [Gold Standard Checklist for Web Components](https://github.com/webcomponents/gold-standard/wiki). The quality, thoroughness, and thoughtfulness of the Elix mixin library is what make Elix's web components what they are.
+
+Elix supports the developer philosophy that everything should be open for understanding. It should be as thin a layer of dependency-free JavaScript with patterns readily recognizable and understandable by developer. It discourages syntactical shortcuts, "*syntax sugar*," and encourages understanding of its core mechanisms. While providing common patterns for web component development, Elix believes it's important for those patterns to be understood by developers who engage with it.
+
+This guide to Elix is intended to give a developer insights to Elix's internals, the reasons why the internals were written the way they are, and to lower a developer's blindfold regarding the native DOM API and discourage "cookbook" coding without fully understanding the recipes in the cookbook. Elix is not a framework, but a collection of common coding patterns, factored into semantically-inspired mixins coupled with a growing set of web components that are constructed with those mixins.
+
+In this first chapter, we're going to work our way up to understanding the three core Elix mixins, which we'll first reveal in Chapter 2, by building a very simple web component with no JavaScript library, framework, or support code. We'll do so such that we can glimpse the underlying patterns that inspired Elix's code organization, so that when we present the code behind Elix you will have a sense for how it evolved to its current form, the reasons for that, and its ongoing organizing principles. The idea is to make Elix transparent to you as a developer, and not a black box recipe book.
 
 Let's start by agreeing to some terms. *Web component* and *custom element* are often used interchangeably. We're going to refer to *web component* as a component that extends the DOM tag space. *Custom elements* refer to a browser specification and set of APIs. *Shadow DOM* is also a browser specification and API. Together, custom elements and shadow DOM are used to build web components. We'll talk about the *web components* we're building as a finished piece &mdash; something that has an HTML tag associated with it and is attached to the DOM. Custom elements help us get there.
 
 ## What does a minimal web component look like?
 
-[To do: start with `customElements.define` and explain how the DOM API recognizes and instantiates a web component.]
+A web component has a tag name that extends the HTML tag space, the only restriction on the name being that it must contain at least one hyphen. So while `<mywebcomponent>` is not acceptable, `<my-web-component>` is. The reason is that the DOM will identify that a tag refers to a web component by virtue of finding a hypenated tag. When it does, it will check in its registry for a JavaScript class that specifies the behavior of the component. If it finds neither the hyphenated tag name nor the class code, it ignores the tag.
 
-A do-nothing, minimal web component has these pieces:
+You can register a tag name and associated JavaScript class with the DOM through the `customElements` global window object:
+
+```
+customElements.define('my-web-component', MyWebComponent)
+```
+
+where `MyWebComponent` is the JavaScript class implementing the `<my-web-component>` component.
+
+A do-nothing, minimal web component implementation has these pieces:
 
 * A JavaScript class that extends HTMLElement
 * A constructor
 * A few callbacks
-* A means for registering with the DOM
+* A call to register the component with the DOM
 
 Let's look at the code:
 
@@ -1553,4 +1569,4 @@ customElements.define('spin-box', SpinBox);
 
 We've walked through a progression of sample code in building out the SpinBox component, starting with the bare essentials of how a web component announces itself to the DOM and registers its implementation class. We took a step-by-step approach in showing the motivation for a common pattern based on a *reactive* code flow where changes in the component's state results in a call to a render method. The render method serves as the central point where the component expresses its user interface. Along the way, we recognized patterns and best practices for identifying "meta state" such as when the component is rendering for the first time, when the best time is for instantiating the shadow DOM, and code patterns that will be common across any component we write. We ended up with mixins as a vehicle for code sharing, and symbols for sharing internal properties and methods to avoid name collisions.
 
-The way we walked through this progression may seem obvious, or perhaps contrived, but the more sophisticated implementation of Elix which we'll begin learning in more depth next is the result of having recognized and learned these patterns over time, both as the Web Component specification evolved, and as ES 2015 with its JavaScript extensions came into prominence. What you're seeing here is not a set of patterns that were knowable from the start, or magical in any way. You're seeing the results of many iterations. As the goal is to shine a light into the internals of Elix, understanding a sense of how these patterns were derived will give you confidence as you learn more about Elix that there's nothing magic, hidden, or unknowable about it. You have the ability to dive into any mixin implementation and understand how it fits into the whole.
+The way we walked through this progression may seem obvious, or perhaps contrived, but the more sophisticated implementation of Elix which we'll begin learning in-depth next is the result of having recognized and learned these patterns over time, both as the Web Component specification evolved, and as ES 2015 with its JavaScript extensions came into prominence. What you're seeing here is not a set of patterns that were knowable from the start, or magical in any way. You're seeing the results of many iterations in the evolution of Elix. As the goal is to shine a light into the internals of Elix, understanding a sense of how these patterns were derived will give you confidence as you learn more about Elix that there's nothing magical, hidden, or unknowable about it. You have the ability to dive into any portion of Elix's implementation and understand how it fits into the whole.
