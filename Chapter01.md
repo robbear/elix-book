@@ -1368,7 +1368,7 @@ export const template = Symbol("template");
 const templateElement = this[template];
 ```
 
-**In SpinBox.js***
+**In SpinBox.js**
 ```
 import { ShadowHelperMixin, template } from './ShadowHelperMixin.js';
 
