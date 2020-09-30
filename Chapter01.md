@@ -1,4 +1,4 @@
-# A Framework-Free SpinBox Web Component
+# Web Component Patterns and Evolving to Elix
 
 ## Introduction
 
